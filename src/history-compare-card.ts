@@ -1,13 +1,23 @@
 import { LitElement, html, css, nothing } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
-import { Chart, LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend } from 'chart.js';
+import {
+  Chart,
+  LineController,
+  LineElement,
+  PointElement,
+  LinearScale,
+  CategoryScale,
+  Tooltip,
+  Legend,
+  Filler,
+} from 'chart.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { ChartSeries, HistoryCompareCardConfig } from './types';
-import { normalizeConfig, hoursBetween } from './utils';
+import { normalizeConfig, buildHourBuckets, formatHourLabel } from './utils';
 import { buildChartSeries } from './history';
 import './history-compare-card-editor';
 
-Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend);
+Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
 @customElement('history-compare-card')
 export class HistoryCompareCard extends LitElement {
@@ -36,9 +46,13 @@ export class HistoryCompareCard extends LitElement {
       border-radius: 8px;
       background: var(--secondary-background-color);
     }
+    .chart-shell {
+      position: relative;
+      min-height: 360px;
+    }
     canvas {
       width: 100% !important;
-      max-height: 360px;
+      height: 360px !important;
     }
   `;
 
@@ -76,24 +90,38 @@ export class HistoryCompareCard extends LitElement {
           <div class="meta">Entity: ${this._config.entity} · Range: ${this._config.range.hours}h</div>
           ${this._loading ? html`<div class="status">Loading history…</div>` : nothing}
           ${this._error ? html`<div class="status">${this._error}</div>` : nothing}
-          <canvas id="chart"></canvas>
+          <div class="chart-shell">
+            <canvas id="chart"></canvas>
+          </div>
         </div>
       </ha-card>
     `;
   }
 
-  protected updated(): void {
+  protected updated(changedProperties: Map<string, unknown>): void {
+    if (changedProperties.has('hass') && this._config) {
+      void this._load();
+      return;
+    }
+
     if (this._series.length) {
       this._renderChart();
     }
+  }
+
+  disconnectedCallback(): void {
+    super.disconnectedCallback();
+    this._chart?.destroy();
   }
 
   private async _load(): Promise<void> {
     if (!this.hass || !this._config) {
       return;
     }
+
     this._loading = true;
     this._error = undefined;
+
     try {
       this._series = await buildChartSeries(
         this.hass,
@@ -103,6 +131,7 @@ export class HistoryCompareCard extends LitElement {
       );
     } catch (error) {
       this._error = error instanceof Error ? error.message : 'Unable to load history';
+      this._series = [];
     } finally {
       this._loading = false;
     }
@@ -114,7 +143,7 @@ export class HistoryCompareCard extends LitElement {
       return;
     }
 
-    const labels = hoursBetween(new Date(0), new Date(this._config.range.hours * 60 * 60 * 1000)).map((value) => `${value}h`);
+    const labels = buildHourBuckets(this._config.range.hours).map((value) => formatHourLabel(value, this._config.range.hours));
 
     this._chart?.destroy();
     this._chart = new Chart(canvas, {
@@ -123,21 +152,39 @@ export class HistoryCompareCard extends LitElement {
         labels,
         datasets: this._series.map((series) => ({
           label: series.name,
-          data: labels.map((_, index) => {
-            const point = series.points.find((item) => Math.round(item.x) === index);
-            return point?.y ?? null;
-          }),
+          data: series.points.map((point) => point.y),
           borderColor: series.color,
-          backgroundColor: series.color,
+          backgroundColor: `${series.color}33`,
+          pointRadius: 0,
+          pointHoverRadius: 4,
+          borderWidth: 2,
           spanGaps: true,
-          tension: 0.25,
+          fill: false,
+          stepped: true,
+          tension: 0,
         })),
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
+        interaction: {
+          mode: 'index',
+          intersect: false,
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+          },
+          tooltip: {
+            callbacks: {
+              title: (items) => items[0]?.label ?? '',
+            },
+          },
+        },
         scales: {
-          y: { beginAtZero: false },
+          y: {
+            beginAtZero: false,
+          },
         },
       },
     });

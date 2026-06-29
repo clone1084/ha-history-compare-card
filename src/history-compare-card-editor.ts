@@ -2,7 +2,14 @@ import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { HistoryCompareCardConfig, HistoryCompareSeriesConfig } from './types';
-import { DEFAULT_SERIES } from './utils';
+import {
+  DEFAULT_SERIES_COLOR,
+  DEFAULT_TITLE,
+  createDefaultConfig,
+  denormalizeSeries,
+  getEntityOptions,
+  normalizeSeriesConfig,
+} from './utils';
 
 @customElement('history-compare-card-editor')
 export class HistoryCompareCardEditor extends LitElement {
@@ -21,6 +28,12 @@ export class HistoryCompareCardEditor extends LitElement {
       display: grid;
       gap: 8px;
     }
+    .series-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
     label {
       display: grid;
       gap: 4px;
@@ -30,19 +43,19 @@ export class HistoryCompareCardEditor extends LitElement {
       font: inherit;
       padding: 8px;
     }
+    button {
+      cursor: pointer;
+    }
   `;
 
   public setConfig(config: HistoryCompareCardConfig): void {
+    const base = createDefaultConfig();
     this._config = {
-      type: 'custom:history-compare-card',
-      entity: config.entity ?? '',
-      title: config.title ?? 'History Compare',
-      range: config.range ?? { hours: 24 },
-      series: config.series ?? DEFAULT_SERIES.map((item) => ({
-        name: item.name,
-        color: item.color,
-        offset: item.offset,
-      })),
+      ...base,
+      ...config,
+      title: config.title ?? DEFAULT_TITLE,
+      range: config.range ?? base.range,
+      series: normalizeSeriesConfig(config.series).map(denormalizeSeries),
     };
   }
 
@@ -51,7 +64,7 @@ export class HistoryCompareCardEditor extends LitElement {
       return html``;
     }
 
-    const entities = Object.keys(this.hass?.states ?? {}).filter((entityId) => entityId.startsWith('sensor.') || entityId.startsWith('binary_sensor.') || entityId.startsWith('input_number.'));
+    const entities = getEntityOptions(this.hass?.states ?? {});
 
     return html`
       <div class="grid">
@@ -59,7 +72,7 @@ export class HistoryCompareCardEditor extends LitElement {
           Entity
           <select .value=${this._config.entity} @change=${this._onEntityChange}>
             <option value="">Select entity</option>
-            ${entities.map((entityId) => html`<option value=${entityId}>${entityId}</option>`) }
+            ${entities.map((entityId) => html`<option value=${entityId}>${entityId}</option>`)}
           </select>
         </label>
 
@@ -83,17 +96,21 @@ export class HistoryCompareCardEditor extends LitElement {
   private _renderSeries(series: HistoryCompareSeriesConfig, index: number) {
     return html`
       <div class="series">
+        <div class="series-header">
+          <strong>Series ${index + 1}</strong>
+          <button type="button" @click=${() => this._removeSeries(index)}>Remove</button>
+        </div>
         <label>
           Name
           <input .value=${series.name} @input=${(event: Event) => this._updateSeries(index, 'name', (event.target as HTMLInputElement).value)} />
         </label>
         <label>
           Color
-          <input type="color" .value=${series.color ?? '#3f51b5'} @input=${(event: Event) => this._updateSeries(index, 'color', (event.target as HTMLInputElement).value)} />
+          <input type="color" .value=${series.color ?? DEFAULT_SERIES_COLOR} @input=${(event: Event) => this._updateSeries(index, 'color', (event.target as HTMLInputElement).value)} />
         </label>
         <label>
           Offset hours
-          <input type="number" .value=${String(series.offset_hours ?? series.offset?.hours ?? 0)} @input=${(event: Event) => this._updateSeriesOffset(index, 'hours', Number((event.target as HTMLInputElement).value))} />
+          <input type="number" .value=${String(series.offset?.hours ?? series.offset_hours ?? 0)} @input=${(event: Event) => this._updateSeriesOffset(index, 'hours', Number((event.target as HTMLInputElement).value))} />
         </label>
         <label>
           Offset days
@@ -103,7 +120,6 @@ export class HistoryCompareCardEditor extends LitElement {
           Offset years
           <input type="number" .value=${String(series.offset?.years ?? 0)} @input=${(event: Event) => this._updateSeriesOffset(index, 'years', Number((event.target as HTMLInputElement).value))} />
         </label>
-        <button type="button" @click=${() => this._removeSeries(index)}>Remove</button>
       </div>
     `;
   }
@@ -117,12 +133,15 @@ export class HistoryCompareCardEditor extends LitElement {
   }
 
   private _onRangeChange(event: Event) {
-    const hours = Number((event.target as HTMLInputElement).value) || 24;
+    const hours = Math.max(1, Number((event.target as HTMLInputElement).value) || 24);
     this._emit({ range: { hours } });
   }
 
   private _addSeries() {
-    const series = [...(this._config?.series ?? []), { name: 'Comparison', color: '#9c27b0', offset: { hours: 0, days: 0, years: 0 } }];
+    const series = [
+      ...(this._config?.series ?? []),
+      { name: 'Comparison', color: DEFAULT_SERIES_COLOR, offset: { hours: 0, days: 0, years: 0 } },
+    ];
     this._emit({ series });
   }
 
@@ -146,7 +165,7 @@ export class HistoryCompareCardEditor extends LitElement {
         hours: series[index].offset?.hours ?? series[index].offset_hours ?? 0,
         days: series[index].offset?.days ?? 0,
         years: series[index].offset?.years ?? 0,
-        [key]: value,
+        [key]: Number.isFinite(value) ? value : 0,
       },
       offset_hours: undefined,
     };
