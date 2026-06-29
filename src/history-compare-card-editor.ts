@@ -5,9 +5,12 @@ import type { HistoryCompareCardConfig, HistoryCompareSeriesConfig } from './typ
 import {
   DEFAULT_SERIES_COLOR,
   DEFAULT_TITLE,
+  VALID_AGGREGATION_MINUTES,
   createDefaultConfig,
   denormalizeSeries,
+  formatEntityOptionLabel,
   getEntityOptions,
+  normalizeAggregationMinutes,
   normalizeSeriesConfig,
 } from './utils';
 
@@ -55,6 +58,7 @@ export class HistoryCompareCardEditor extends LitElement {
       ...config,
       title: config.title ?? DEFAULT_TITLE,
       range: config.range ?? base.range,
+      aggregation_minutes: normalizeAggregationMinutes(config.aggregation_minutes),
       series: normalizeSeriesConfig(config.series).map(denormalizeSeries),
     };
   }
@@ -65,15 +69,21 @@ export class HistoryCompareCardEditor extends LitElement {
     }
 
     const entities = getEntityOptions(this.hass?.states ?? {});
+    const aggrMinutes = this._config.aggregation_minutes ?? 60;
 
     return html`
       <div class="grid">
         <label>
           Entity
-          <select .value=${this._config.entity} @change=${this._onEntityChange}>
-            <option value="">Select entity</option>
-            ${entities.map((entityId) => html`<option value=${entityId}>${entityId}</option>`)}
-          </select>
+          <input
+            list="hcc-entity-list"
+            .value=${this._config.entity}
+            @change=${this._onEntityChange}
+            placeholder="Search by entity ID or name…"
+          />
+          <datalist id="hcc-entity-list">
+            ${entities.map(({ id, name }) => html`<option value=${id}>${formatEntityOptionLabel(id, name)}</option>`)}
+          </datalist>
         </label>
 
         <label>
@@ -84,6 +94,19 @@ export class HistoryCompareCardEditor extends LitElement {
         <label>
           Range hours
           <input type="number" min="1" .value=${String(this._config.range?.hours ?? 24)} @input=${this._onRangeChange} />
+        </label>
+
+        <label>
+          Aggregation
+          <select .value=${String(aggrMinutes)} @change=${this._onAggregationChange}>
+            ${VALID_AGGREGATION_MINUTES.map(
+              (minutes) => html`
+                <option value=${String(minutes)} ?selected=${minutes === aggrMinutes}>
+                  ${minutes < 60 ? `${minutes} min` : '1 h'}
+                </option>
+              `,
+            )}
+          </select>
         </label>
 
         ${(this._config.series ?? []).map((series, index) => this._renderSeries(series, index))}
@@ -125,7 +148,7 @@ export class HistoryCompareCardEditor extends LitElement {
   }
 
   private _onEntityChange(event: Event) {
-    this._emit({ entity: (event.target as HTMLSelectElement).value });
+    this._emit({ entity: (event.target as HTMLInputElement).value.trim() });
   }
 
   private _onTitleChange(event: Event) {
@@ -135,6 +158,11 @@ export class HistoryCompareCardEditor extends LitElement {
   private _onRangeChange(event: Event) {
     const hours = Math.max(1, Number((event.target as HTMLInputElement).value) || 24);
     this._emit({ range: { hours } });
+  }
+
+  private _onAggregationChange(event: Event) {
+    const minutes = Number((event.target as HTMLSelectElement).value);
+    this._emit({ aggregation_minutes: normalizeAggregationMinutes(minutes) });
   }
 
   private _addSeries() {

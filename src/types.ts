@@ -20,6 +20,7 @@ export interface HistoryCompareCardConfig {
   entity: string;
   title?: string;
   range?: HistoryCompareRangeConfig;
+  aggregation_minutes?: number;
   series?: HistoryCompareSeriesConfig[];
 }
 

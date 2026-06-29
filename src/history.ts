@@ -1,5 +1,5 @@
 import type { HomeAssistant } from 'custom-card-helpers';
-import { subtractOffset, buildHourBuckets } from './utils';
+import { subtractOffset, buildTimeBuckets } from './utils';
 import type { ChartSeries, HistoryPoint, NormalizedSeriesConfig, StatisticValue } from './types';
 
 export async function fetchHistory(
@@ -29,8 +29,9 @@ export function toNumericHistoryPoints(raw: HistoryPoint[], start: Date): Array<
 export function buildAlignedDataset(
   points: Array<{ x: number; y: number | null }>,
   rangeHours: number,
+  aggregationMinutes = 60,
 ): Array<{ x: number; y: number | null }> {
-  const buckets = buildHourBuckets(rangeHours);
+  const buckets = buildTimeBuckets(rangeHours, aggregationMinutes);
   let cursor = 0;
   let latestValue: number | null = null;
 
@@ -55,22 +56,18 @@ export async function fetchStatistics(
   start: Date,
   end: Date,
 ): Promise<StatisticValue[]> {
-  try {
-    const response = await hass.callApi<Record<string, StatisticValue[]>>(
-      'POST',
-      'recorder/statistics_during_period',
-      {
-        start_time: start.toISOString(),
-        end_time: end.toISOString(),
-        statistic_ids: [entityId],
-        period: 'hour',
-        types: ['mean', 'state'],
-      },
-    );
-    return response?.[entityId] ?? [];
-  } catch {
-    return [];
-  }
+  const response = await hass.callApi<Record<string, StatisticValue[]>>(
+    'POST',
+    'recorder/statistics_during_period',
+    {
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      statistic_ids: [entityId],
+      period: 'hour',
+      types: ['mean', 'state'],
+    },
+  );
+  return response?.[entityId] ?? [];
 }
 
 export function toNumericStatisticsPoints(
@@ -91,6 +88,7 @@ export async function buildChartSeries(
   entityId: string,
   rangeHours: number,
   seriesConfigs: NormalizedSeriesConfig[],
+  aggregationMinutes = 60,
 ): Promise<ChartSeries[]> {
   const now = new Date();
   const baseEnd = now;
@@ -112,7 +110,7 @@ export async function buildChartSeries(
         numeric = toNumericHistoryPoints(raw, start);
       }
 
-      const points = buildAlignedDataset(numeric, rangeHours);
+      const points = buildAlignedDataset(numeric, rangeHours, aggregationMinutes);
 
       return {
         name: config.name,
@@ -122,9 +120,11 @@ export async function buildChartSeries(
     }),
   );
 
-  return results.map((result, index) =>
-    result.status === 'fulfilled'
-      ? result.value
-      : { name: seriesConfigs[index].name, color: seriesConfigs[index].color, points: [] },
-  );
+  return results.map((result, index) => {
+    if (result.status === 'fulfilled') {
+      return result.value;
+    }
+    console.error(`[history-compare-card] Failed to load series "${seriesConfigs[index].name}":`, result.reason);
+    return { name: seriesConfigs[index].name, color: seriesConfigs[index].color, points: [] };
+  });
 }

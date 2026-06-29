@@ -9,6 +9,14 @@ export const DEFAULT_SERIES: NormalizedSeriesConfig[] = [
 export const DEFAULT_RANGE_HOURS = 24;
 export const DEFAULT_TITLE = 'History Compare';
 export const DEFAULT_SERIES_COLOR = '#3f51b5';
+export const DEFAULT_AGGREGATION_MINUTES = 60;
+export const VALID_AGGREGATION_MINUTES = [5, 10, 15, 30, 60] as const;
+export type AggregationMinutes = (typeof VALID_AGGREGATION_MINUTES)[number];
+
+export function normalizeAggregationMinutes(value?: number): AggregationMinutes {
+  const found = VALID_AGGREGATION_MINUTES.find((v) => v === value);
+  return found ?? DEFAULT_AGGREGATION_MINUTES;
+}
 
 export function normalizeOffset(offset?: HistoryCompareOffset, offsetHours?: number): Required<HistoryCompareOffset> {
   return {
@@ -42,6 +50,7 @@ export function normalizeConfig(config: HistoryCompareCardConfig): Required<Hist
     entity: config.entity,
     title: config.title?.trim() || DEFAULT_TITLE,
     range,
+    aggregation_minutes: normalizeAggregationMinutes(config.aggregation_minutes),
     series: normalizeSeriesConfig(config.series),
   };
 }
@@ -52,6 +61,7 @@ export function createDefaultConfig(): Required<HistoryCompareCardConfig> {
     entity: '',
     title: DEFAULT_TITLE,
     range: { hours: DEFAULT_RANGE_HOURS },
+    aggregation_minutes: DEFAULT_AGGREGATION_MINUTES,
     series: DEFAULT_SERIES.map((item) => ({ ...item, offset: { ...item.offset } })),
   };
 }
@@ -70,9 +80,15 @@ export function subtractOffset(date: Date, offset: Required<HistoryCompareOffset
   return next;
 }
 
+export function buildTimeBuckets(rangeHours: number, aggregationMinutes: number): number[] {
+  const normalizedHours = Math.max(1, Math.round(rangeHours));
+  const stepHours = aggregationMinutes / 60;
+  const totalBuckets = Math.round(normalizedHours / stepHours);
+  return Array.from({ length: totalBuckets + 1 }, (_, i) => i * stepHours);
+}
+
 export function buildHourBuckets(rangeHours: number): number[] {
-  const normalized = Math.max(1, Math.round(rangeHours));
-  return Array.from({ length: normalized + 1 }, (_, index) => index);
+  return buildTimeBuckets(rangeHours, 60);
 }
 
 export function formatHourLabel(hour: number, totalHours: number): string {
@@ -85,7 +101,18 @@ export function formatHourLabel(hour: number, totalHours: number): string {
   return `D${day} ${hourOfDay}h`;
 }
 
-export function getEntityOptions(states: Record<string, { attributes?: Record<string, unknown> }>): string[] {
+export interface EntityOption {
+  id: string;
+  name: string;
+}
+
+export function formatEntityOptionLabel(id: string, name: string): string {
+  return name !== id ? `${id} — ${name}` : id;
+}
+
+export function getEntityOptions(
+  states: Record<string, { attributes?: Record<string, unknown> }>,
+): EntityOption[] {
   return Object.entries(states)
     .filter(([entityId, state]) => {
       const domain = entityId.split('.')[0];
@@ -95,6 +122,9 @@ export function getEntityOptions(states: Record<string, { attributes?: Record<st
 
       return supportedDomains.includes(domain) || typeof unitOfMeasurement === 'string' || typeof stateClass === 'string';
     })
-    .map(([entityId]) => entityId)
-    .sort((left, right) => left.localeCompare(right));
+    .map(([entityId, state]) => ({
+      id: entityId,
+      name: (state.attributes?.friendly_name ?? entityId) as string,
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
 }
