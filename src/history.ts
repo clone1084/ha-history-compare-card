@@ -1,6 +1,6 @@
 import type { HomeAssistant } from 'custom-card-helpers';
 import { subtractOffset, buildHourBuckets } from './utils';
-import type { ChartSeries, HistoryPoint, NormalizedSeriesConfig } from './types';
+import type { ChartSeries, HistoryPoint, NormalizedSeriesConfig, StatisticValue } from './types';
 
 export async function fetchHistory(
   hass: HomeAssistant,
@@ -47,6 +47,41 @@ export function buildAlignedDataset(
   });
 }
 
+const HISTORY_RETENTION_MS = 10 * 24 * 60 * 60 * 1000;
+
+export async function fetchStatistics(
+  hass: HomeAssistant,
+  entityId: string,
+  start: Date,
+  end: Date,
+): Promise<StatisticValue[]> {
+  const response = await hass.callApi<Record<string, StatisticValue[]>>(
+    'POST',
+    'recorder/statistics_during_period',
+    {
+      start_time: start.toISOString(),
+      end_time: end.toISOString(),
+      statistic_ids: [entityId],
+      period: 'hour',
+      types: ['mean', 'state'],
+    },
+  );
+  return response?.[entityId] ?? [];
+}
+
+export function toNumericStatisticsPoints(
+  stats: StatisticValue[],
+  start: Date,
+): Array<{ x: number; y: number | null }> {
+  return stats
+    .map((stat) => ({
+      x: (new Date(stat.start).getTime() - start.getTime()) / (60 * 60 * 1000),
+      y: stat.mean ?? stat.state ?? null,
+    }))
+    .filter((point) => point.x >= 0)
+    .sort((left, right) => left.x - right.x);
+}
+
 export async function buildChartSeries(
   hass: HomeAssistant,
   entityId: string,
@@ -61,8 +96,18 @@ export async function buildChartSeries(
     seriesConfigs.map(async (config) => {
       const start = subtractOffset(baseStart, config.offset);
       const end = subtractOffset(baseEnd, config.offset);
-      const raw = await fetchHistory(hass, entityId, start, end);
-      const numeric = toNumericHistoryPoints(raw, start);
+
+      const useStatistics = now.getTime() - start.getTime() > HISTORY_RETENTION_MS;
+      let numeric: Array<{ x: number; y: number | null }>;
+
+      if (useStatistics) {
+        const stats = await fetchStatistics(hass, entityId, start, end);
+        numeric = toNumericStatisticsPoints(stats, start);
+      } else {
+        const raw = await fetchHistory(hass, entityId, start, end);
+        numeric = toNumericHistoryPoints(raw, start);
+      }
+
       const points = buildAlignedDataset(numeric, rangeHours);
 
       return {

@@ -39,3 +39,11 @@ export interface ChartSeries {
   color: string;
   points: Array<{ x: number; y: number | null }>;
 }
+
+export interface StatisticValue {
+  start: string;
+  end: string;
+  mean: number | null;
+  state: number | null;
+  sum: number | null;
+}
