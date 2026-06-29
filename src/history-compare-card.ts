@@ -19,6 +19,8 @@ import './history-compare-card-editor';
 
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
 
+const REFRESH_THROTTLE_MS = 5 * 60 * 1000;
+
 @customElement('history-compare-card')
 export class HistoryCompareCard extends LitElement {
   @property({ attribute: false }) public hass!: HomeAssistant;
@@ -27,6 +29,8 @@ export class HistoryCompareCard extends LitElement {
   @state() private _error?: string;
   @state() private _series: ChartSeries[] = [];
   private _chart?: Chart;
+  private _lastLoadedAt = 0;
+  private _refreshTimer?: number;
 
   static styles = css`
     ha-card {
@@ -71,8 +75,10 @@ export class HistoryCompareCard extends LitElement {
     if (!config.entity) {
       throw new Error('Entity is required');
     }
+
     this._config = normalizeConfig(config);
-    void this._load();
+    this._lastLoadedAt = 0;
+    void this._load(true);
   }
 
   public getCardSize(): number {
@@ -98,10 +104,13 @@ export class HistoryCompareCard extends LitElement {
     `;
   }
 
+  protected firstUpdated(): void {
+    this._scheduleRefresh();
+  }
+
   protected updated(changedProperties: Map<string, unknown>): void {
     if (changedProperties.has('hass') && this._config) {
-      void this._load();
-      return;
+      void this._load(false);
     }
 
     if (this._series.length) {
@@ -112,10 +121,29 @@ export class HistoryCompareCard extends LitElement {
   disconnectedCallback(): void {
     super.disconnectedCallback();
     this._chart?.destroy();
+    if (this._refreshTimer) {
+      window.clearInterval(this._refreshTimer);
+      this._refreshTimer = undefined;
+    }
   }
 
-  private async _load(): Promise<void> {
+  private _scheduleRefresh(): void {
+    if (this._refreshTimer) {
+      window.clearInterval(this._refreshTimer);
+    }
+
+    this._refreshTimer = window.setInterval(() => {
+      void this._load(true);
+    }, REFRESH_THROTTLE_MS);
+  }
+
+  private async _load(force: boolean): Promise<void> {
     if (!this.hass || !this._config) {
+      return;
+    }
+
+    const now = Date.now();
+    if (!force && now - this._lastLoadedAt < REFRESH_THROTTLE_MS) {
       return;
     }
 
@@ -129,6 +157,7 @@ export class HistoryCompareCard extends LitElement {
         this._config.range.hours,
         this._config.series,
       );
+      this._lastLoadedAt = now;
     } catch (error) {
       this._error = error instanceof Error ? error.message : 'Unable to load history';
       this._series = [];

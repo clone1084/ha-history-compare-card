@@ -4,6 +4,7 @@ import {
   buildHourBuckets,
   createDefaultConfig,
   formatHourLabel,
+  getEntityOptions,
   normalizeConfig,
   normalizeOffset,
   subtractOffset,
@@ -62,13 +63,26 @@ describe('formatHourLabel', () => {
   });
 });
 
+describe('getEntityOptions', () => {
+  it('filters numeric-friendly entities and sorts them', () => {
+    const result = getEntityOptions({
+      'binary_sensor.window': { attributes: {} },
+      'sensor.temperature': { attributes: { unit_of_measurement: '°C' } },
+      'number.threshold': { attributes: {} },
+      'input_number.target': { attributes: {} },
+    });
+
+    expect(result).toEqual(['input_number.target', 'number.threshold', 'sensor.temperature']);
+  });
+});
+
 describe('toNumericHistoryPoints', () => {
   it('maps valid numeric values and preserves nulls for invalid states', () => {
     const start = new Date('2026-06-29T00:00:00Z');
     const result = toNumericHistoryPoints(
       [
-        { last_changed: '2026-06-29T01:00:00Z', state: '21.2' },
         { last_changed: '2026-06-29T02:00:00Z', state: 'unknown' },
+        { last_changed: '2026-06-29T01:00:00Z', state: '21.2' },
       ],
       start,
     );

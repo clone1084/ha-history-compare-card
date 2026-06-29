@@ -44,6 +44,15 @@ function normalizeConfig(config) {
     series: normalizeSeriesConfig(config.series)
   };
 }
+function createDefaultConfig() {
+  return {
+    type: "custom:history-compare-card",
+    entity: "",
+    title: DEFAULT_TITLE,
+    range: { hours: DEFAULT_RANGE_HOURS },
+    series: DEFAULT_SERIES.map((item) => ({ ...item, offset: { ...item.offset } }))
+  };
+}
 function subtractOffset(date, offset) {
   const next = new Date(date);
   if (offset.years) {
@@ -70,10 +79,13 @@ function formatHourLabel(hour, totalHours) {
   return `D${day} ${hourOfDay}h`;
 }
 function getEntityOptions(states) {
-  return Object.entries(states).filter(([, state]) => {
-    var _a;
-    const deviceClass = (_a = state.attributes) == null ? void 0 : _a.device_class;
-    return deviceClass !== "timestamp";
+  return Object.entries(states).filter(([entityId, state]) => {
+    var _a, _b;
+    const domain = entityId.split(".")[0];
+    const unitOfMeasurement = (_a = state.attributes) == null ? void 0 : _a.unit_of_measurement;
+    const stateClass = (_b = state.attributes) == null ? void 0 : _b.state_class;
+    const supportedDomains = ["sensor", "input_number", "number"];
+    return supportedDomains.includes(domain) || typeof unitOfMeasurement === "string" || typeof stateClass === "string";
   }).map(([entityId]) => entityId).sort((left, right) => left.localeCompare(right));
 }
 async function fetchHistory(hass, entityId, start, end) {
@@ -88,7 +100,7 @@ function toNumericHistoryPoints(raw, start) {
   return raw.map((point) => ({
     x: (new Date(point.last_changed).getTime() - start.getTime()) / (60 * 60 * 1e3),
     y: Number.isFinite(Number(point.state)) ? Number(point.state) : null
-  })).filter((point) => point.x >= 0);
+  })).filter((point) => point.x >= 0).sort((left, right) => left.x - right.x);
 }
 function buildAlignedDataset(points, rangeHours) {
   const buckets = buildHourBuckets(rangeHours);
@@ -125,6 +137,7 @@ async function buildChartSeries(hass, entityId, rangeHours, seriesConfigs) {
   );
 }
 Chart.register(LineController, LineElement, PointElement, LinearScale, CategoryScale, Tooltip, Legend, Filler);
+var REFRESH_THROTTLE_MS = 5 * 60 * 1e3;
 let HistoryCompareCardEditor = class extends i2 {
   constructor() {
     super(...arguments);
@@ -305,6 +318,8 @@ let HistoryCompareCard = class extends i2 {
     __publicField(this, "_error");
     __publicField(this, "_series", []);
     __publicField(this, "_chart");
+    __publicField(this, "_lastLoadedAt", 0);
+    __publicField(this, "_refreshTimer");
   }
   static async getConfigElement() {
     return document.createElement("history-compare-card-editor");
@@ -320,7 +335,8 @@ let HistoryCompareCard = class extends i2 {
       throw new Error("Entity is required");
     }
     this._config = normalizeConfig(config);
-    void this._load();
+    this._lastLoadedAt = 0;
+    void this._load(true);
   }
   getCardSize() {
     return 4;
@@ -342,10 +358,12 @@ let HistoryCompareCard = class extends i2 {
       </ha-card>
     `;
   }
+  firstUpdated() {
+    this._scheduleRefresh();
+  }
   updated(changedProperties) {
     if (changedProperties.has("hass") && this._config) {
-      void this._load();
-      return;
+      void this._load(false);
     }
     if (this._series.length) {
       this._renderChart();
@@ -354,9 +372,25 @@ let HistoryCompareCard = class extends i2 {
   disconnectedCallback() {
     super.disconnectedCallback();
     this._chart?.destroy();
+    if (this._refreshTimer) {
+      window.clearInterval(this._refreshTimer);
+      this._refreshTimer = void 0;
+    }
   }
-  async _load() {
+  _scheduleRefresh() {
+    if (this._refreshTimer) {
+      window.clearInterval(this._refreshTimer);
+    }
+    this._refreshTimer = window.setInterval(() => {
+      void this._load(true);
+    }, REFRESH_THROTTLE_MS);
+  }
+  async _load(force) {
     if (!this.hass || !this._config) {
+      return;
+    }
+    const now = Date.now();
+    if (!force && now - this._lastLoadedAt < REFRESH_THROTTLE_MS) {
       return;
     }
     this._loading = true;
@@ -368,6 +402,7 @@ let HistoryCompareCard = class extends i2 {
         this._config.range.hours,
         this._config.series
       );
+      this._lastLoadedAt = now;
     } catch (error) {
       this._error = error instanceof Error ? error.message : "Unable to load history";
       this._series = [];
@@ -477,12 +512,3 @@ window.customCards.push({
   name: "History Compare Card",
   description: "Compare an entity history over multiple periods"
 });
-function createDefaultConfig() {
-  return {
-    type: "custom:history-compare-card",
-    entity: "",
-    title: DEFAULT_TITLE,
-    range: { hours: DEFAULT_RANGE_HOURS },
-    series: DEFAULT_SERIES.map((item) => ({ ...item, offset: { ...item.offset } }))
-  };
-}

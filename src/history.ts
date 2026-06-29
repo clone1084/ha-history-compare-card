@@ -22,7 +22,8 @@ export function toNumericHistoryPoints(raw: HistoryPoint[], start: Date): Array<
       x: (new Date(point.last_changed).getTime() - start.getTime()) / (60 * 60 * 1000),
       y: Number.isFinite(Number(point.state)) ? Number(point.state) : null,
     }))
-    .filter((point) => point.x >= 0);
+    .filter((point) => point.x >= 0)
+    .sort((left, right) => left.x - right.x);
 }
 
 export function buildAlignedDataset(

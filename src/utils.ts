@@ -87,9 +87,13 @@ export function formatHourLabel(hour: number, totalHours: number): string {
 
 export function getEntityOptions(states: Record<string, { attributes?: Record<string, unknown> }>): string[] {
   return Object.entries(states)
-    .filter(([, state]) => {
-      const deviceClass = state.attributes?.device_class;
-      return deviceClass !== 'timestamp';
+    .filter(([entityId, state]) => {
+      const domain = entityId.split('.')[0];
+      const unitOfMeasurement = state.attributes?.unit_of_measurement;
+      const stateClass = state.attributes?.state_class;
+      const supportedDomains = ['sensor', 'input_number', 'number'];
+
+      return supportedDomains.includes(domain) || typeof unitOfMeasurement === 'string' || typeof stateClass === 'string';
     })
     .map(([entityId]) => entityId)
     .sort((left, right) => left.localeCompare(right));

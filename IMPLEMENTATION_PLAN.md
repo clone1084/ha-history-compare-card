@@ -29,6 +29,7 @@ Create a modern HACS-installable Home Assistant Lovelace card named `history-com
 7. Add tests for date/window helpers and config handling
 8. Update README with installation and usage
 9. Mark this plan completed after successful implementation
+10. Harden packaging, entity filtering, refresh behavior, and release readiness
 
 ## Status
 - [x] Repository inspected
@@ -38,6 +39,7 @@ Create a modern HACS-installable Home Assistant Lovelace card named `history-com
 - [x] Tests added
 - [x] Documentation finalized
 - [x] Plan updated on successful completion
+- [x] Hardening pass completed
 
 ## Conclusion
 Initial HACS-ready release completed with:
@@ -47,3 +49,4 @@ Initial HACS-ready release completed with:
 - Visual editor for entity, range, colors and offsets
 - Tests for helper and alignment logic
 - README and HACS metadata ready for installation
+- Hardening for packaging, throttled refresh, and numeric-entity filtering
