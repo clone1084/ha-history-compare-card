@@ -7801,29 +7801,23 @@ function Do(i) {
   const t = Math.max(1, Math.round(i));
   return Array.from({ length: t + 1 }, (e, s) => s);
 }
-function vh(i, t) {
-  if (t <= 24)
-    return `${i}h`;
-  const e = Math.floor(i / 24), s = i % 24;
-  return `D${e} ${s}h`;
-}
-function wh(i) {
+function vh(i) {
   return Object.entries(i).filter(([t, e]) => {
     const s = t.split(".")[0], n = e.attributes?.unit_of_measurement, o = e.attributes?.state_class;
     return ["sensor", "input_number", "number"].includes(s) || typeof n == "string" || typeof o == "string";
   }).map(([t]) => t).sort((t, e) => t.localeCompare(e));
 }
-async function Sh(i, t, e, s) {
+async function wh(i, t, e, s) {
   const n = encodeURIComponent(e.toISOString()), o = encodeURIComponent(s.toISOString()), r = `history/period/${n}?filter_entity_id=${encodeURIComponent(t)}&end_time=${o}&minimal_response`, a = await i.callApi("GET", r), l = Array.isArray(a) ? a[0] : [];
   return Array.isArray(l) ? l : [];
 }
-function kh(i, t) {
+function Sh(i, t) {
   return i.map((e) => ({
     x: (new Date(e.last_changed).getTime() - t.getTime()) / (60 * 60 * 1e3),
     y: Number.isFinite(Number(e.state)) ? Number(e.state) : null
   })).filter((e) => e.x >= 0).sort((e, s) => e.x - s.x);
 }
-function Mh(i, t) {
+function kh(i, t) {
   const e = Do(t);
   let s = 0, n = null;
   return e.map((o) => {
@@ -7835,11 +7829,11 @@ function Mh(i, t) {
     };
   });
 }
-async function Ah(i, t, e, s) {
+async function Mh(i, t, e, s) {
   const n = /* @__PURE__ */ new Date(), o = n, r = new Date(n.getTime() - e * 60 * 60 * 1e3);
   return Promise.all(
     s.map(async (a) => {
-      const l = On(r, a.offset), c = On(o, a.offset), h = await Sh(i, t, l, c), d = kh(h, l), f = Mh(d, e);
+      const l = On(r, a.offset), c = On(o, a.offset), h = await wh(i, t, l, c), d = Sh(h, l), f = kh(d, e);
       return {
         name: a.name,
         color: a.color,
@@ -7848,10 +7842,10 @@ async function Ah(i, t, e, s) {
     })
   );
 }
-var Ch = Object.defineProperty, Ph = Object.getOwnPropertyDescriptor, es = (i, t, e, s) => {
-  for (var n = s > 1 ? void 0 : s ? Ph(t, e) : t, o = i.length - 1, r; o >= 0; o--)
+var Ah = Object.defineProperty, Ch = Object.getOwnPropertyDescriptor, es = (i, t, e, s) => {
+  for (var n = s > 1 ? void 0 : s ? Ch(t, e) : t, o = i.length - 1, r; o >= 0; o--)
     (r = i[o]) && (n = (s ? r(t, e, n) : r(n)) || n);
-  return s && n && Ch(t, e, n), n;
+  return s && n && Ah(t, e, n), n;
 };
 let Se = class extends Bt {
   setConfig(i) {
@@ -7867,7 +7861,7 @@ let Se = class extends Bt {
   render() {
     if (!this._config)
       return Ct``;
-    const i = wh(this.hass?.states ?? {});
+    const i = vh(this.hass?.states ?? {});
     return Ct`
       <div class="grid">
         <label>
@@ -8011,10 +8005,10 @@ es([
 Se = es([
   Fn("history-compare-card-editor")
 ], Se);
-var Oh = Object.defineProperty, Dh = Object.getOwnPropertyDescriptor, qt = (i, t, e, s) => {
-  for (var n = s > 1 ? void 0 : s ? Dh(t, e) : t, o = i.length - 1, r; o >= 0; o--)
+var Ph = Object.defineProperty, Oh = Object.getOwnPropertyDescriptor, qt = (i, t, e, s) => {
+  for (var n = s > 1 ? void 0 : s ? Oh(t, e) : t, o = i.length - 1, r; o >= 0; o--)
     (r = i[o]) && (n = (s ? r(t, e, n) : r(n)) || n);
-  return s && n && Oh(t, e, n), n;
+  return s && n && Ph(t, e, n), n;
 };
 lt.register(Ve, ut, Xe, Ii, Li, lh, th, qc);
 const Dn = 5 * 60 * 1e3;
@@ -8074,7 +8068,7 @@ let bt = class extends Bt {
     if (!(!i && t - this._lastLoadedAt < Dn)) {
       this._loading = !0, this._error = void 0;
       try {
-        this._series = await Ah(
+        this._series = await Mh(
           this.hass,
           this._config.entity,
           this._config.range.hours,
@@ -8091,16 +8085,16 @@ let bt = class extends Bt {
     const i = this.renderRoot.querySelector("#chart");
     if (!i || !this._config)
       return;
-    const t = Do(this._config.range.hours).map((e) => vh(e, this._config.range.hours));
+    const t = /* @__PURE__ */ new Date(), e = new Date(t.getTime() - this._config.range.hours * 60 * 60 * 1e3), s = Do(this._config.range.hours).map((n) => `${new Date(e.getTime() + n * 60 * 60 * 1e3).getHours().toString().padStart(2, "0")}:00`);
     this._chart?.destroy(), this._chart = new lt(i, {
       type: "line",
       data: {
-        labels: t,
-        datasets: this._series.map((e) => ({
-          label: e.name,
-          data: e.points.map((s) => s.y),
-          borderColor: e.color,
-          backgroundColor: `${e.color}33`,
+        labels: s,
+        datasets: this._series.map((n) => ({
+          label: n.name,
+          data: n.points.map((o) => o.y),
+          borderColor: n.color,
+          backgroundColor: `${n.color}33`,
           pointRadius: 0,
           pointHoverRadius: 4,
           borderWidth: 2,
@@ -8123,7 +8117,7 @@ let bt = class extends Bt {
           },
           tooltip: {
             callbacks: {
-              title: (e) => e[0]?.label ?? ""
+              title: (n) => n[0]?.label ?? ""
             }
           }
         },

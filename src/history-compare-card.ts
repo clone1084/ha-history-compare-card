@@ -13,7 +13,7 @@ import {
 } from 'chart.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { ChartSeries, HistoryCompareCardConfig } from './types';
-import { normalizeConfig, buildHourBuckets, formatHourLabel } from './utils';
+import { normalizeConfig, buildHourBuckets } from './utils';
 import { buildChartSeries } from './history';
 import './history-compare-card-editor';
 
@@ -172,7 +172,12 @@ export class HistoryCompareCard extends LitElement {
       return;
     }
 
-    const labels = buildHourBuckets(this._config.range.hours).map((value) => formatHourLabel(value, this._config.range.hours));
+    const now = new Date();
+    const startTime = new Date(now.getTime() - this._config.range.hours * 60 * 60 * 1000);
+    const labels = buildHourBuckets(this._config.range.hours).map((bucketHour) => {
+      const t = new Date(startTime.getTime() + bucketHour * 60 * 60 * 1000);
+      return `${t.getHours().toString().padStart(2, '0')}:00`;
+    });
 
     this._chart?.destroy();
     this._chart = new Chart(canvas, {
