@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_SERIES,
   buildHourBuckets,
+  buildTimeBuckets,
   createDefaultConfig,
   formatHourLabel,
   getEntityOptions,
@@ -22,10 +23,11 @@ describe('normalizeOffset', () => {
 });
 
 describe('normalizeConfig', () => {
-  it('adds default range, title and series', () => {
+  it('adds default range, title, aggregation_minutes and series', () => {
     const config = normalizeConfig({ type: 'custom:history-compare-card', entity: 'sensor.temperature' });
     expect(config.title).toBe('History Compare');
     expect(config.range.hours).toBe(24);
+    expect(config.aggregation_minutes).toBe(60);
     expect(config.series).toEqual(DEFAULT_SERIES);
   });
 });
@@ -35,6 +37,7 @@ describe('createDefaultConfig', () => {
     const config = createDefaultConfig();
     expect(config.type).toBe('custom:history-compare-card');
     expect(config.range.hours).toBe(24);
+    expect(config.aggregation_minutes).toBe(60);
     expect(config.series).toHaveLength(3);
   });
 });
@@ -53,6 +56,24 @@ describe('buildHourBuckets', () => {
   });
 });
 
+describe('buildTimeBuckets', () => {
+  it('builds 30-minute buckets', () => {
+    expect(buildTimeBuckets(2, 30)).toEqual([0, 0.5, 1, 1.5, 2]);
+  });
+
+  it('builds 15-minute buckets', () => {
+    const buckets = buildTimeBuckets(1, 15);
+    expect(buckets).toHaveLength(5);
+    expect(buckets[0]).toBeCloseTo(0);
+    expect(buckets[1]).toBeCloseTo(0.25);
+    expect(buckets[4]).toBeCloseTo(1);
+  });
+
+  it('delegates 60-minute buckets to the same result as buildHourBuckets', () => {
+    expect(buildTimeBuckets(3, 60)).toEqual(buildHourBuckets(3));
+  });
+});
+
 describe('formatHourLabel', () => {
   it('formats short ranges in hours', () => {
     expect(formatHourLabel(3, 24)).toBe('3h');
@@ -64,15 +85,19 @@ describe('formatHourLabel', () => {
 });
 
 describe('getEntityOptions', () => {
-  it('filters numeric-friendly entities and sorts them', () => {
+  it('filters numeric-friendly entities, includes friendly names, and sorts by entity ID', () => {
     const result = getEntityOptions({
       'binary_sensor.window': { attributes: {} },
-      'sensor.temperature': { attributes: { unit_of_measurement: '°C' } },
+      'sensor.temperature': { attributes: { unit_of_measurement: '°C', friendly_name: 'Temperature' } },
       'number.threshold': { attributes: {} },
-      'input_number.target': { attributes: {} },
+      'input_number.target': { attributes: { friendly_name: 'Target Value' } },
     });
 
-    expect(result).toEqual(['input_number.target', 'number.threshold', 'sensor.temperature']);
+    expect(result).toEqual([
+      { id: 'input_number.target', name: 'Target Value' },
+      { id: 'number.threshold', name: 'number.threshold' },
+      { id: 'sensor.temperature', name: 'Temperature' },
+    ]);
   });
 });
 

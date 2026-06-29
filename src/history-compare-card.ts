@@ -13,7 +13,7 @@ import {
 } from 'chart.js';
 import type { HomeAssistant } from 'custom-card-helpers';
 import type { ChartSeries, HistoryCompareCardConfig } from './types';
-import { normalizeConfig, buildHourBuckets } from './utils';
+import { normalizeConfig, buildTimeBuckets } from './utils';
 import { buildChartSeries } from './history';
 import './history-compare-card-editor';
 
@@ -93,7 +93,7 @@ export class HistoryCompareCard extends LitElement {
     return html`
       <ha-card header=${this._config.title}>
         <div class="wrapper">
-          <div class="meta">Entity: ${this._config.entity} · Range: ${this._config.range.hours}h</div>
+          <div class="meta">Entity: ${this._config.entity} · Range: ${this._config.range.hours}h · Aggregation: ${this._config.aggregation_minutes}min</div>
           ${this._loading ? html`<div class="status">Loading history…</div>` : nothing}
           ${this._error ? html`<div class="status">${this._error}</div>` : nothing}
           <div class="chart-shell">
@@ -156,6 +156,7 @@ export class HistoryCompareCard extends LitElement {
         this._config.entity,
         this._config.range.hours,
         this._config.series,
+        this._config.aggregation_minutes,
       );
       this._lastLoadedAt = now;
     } catch (error) {
@@ -174,9 +175,11 @@ export class HistoryCompareCard extends LitElement {
 
     const now = new Date();
     const startTime = new Date(now.getTime() - this._config.range.hours * 60 * 60 * 1000);
-    const labels = buildHourBuckets(this._config.range.hours).map((bucketHour) => {
+    const labels = buildTimeBuckets(this._config.range.hours, this._config.aggregation_minutes).map((bucketHour) => {
       const t = new Date(startTime.getTime() + bucketHour * 60 * 60 * 1000);
-      return `${t.getHours().toString().padStart(2, '0')}:00`;
+      const hh = t.getHours().toString().padStart(2, '0');
+      const mm = t.getMinutes().toString().padStart(2, '0');
+      return `${hh}:${mm}`;
     });
 
     this._chart?.destroy();
