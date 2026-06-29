@@ -1,0 +1,21 @@
+{
+  "name": "history-compare-card",
+  "private": false,
+  "version": "0.1.0",
+  "description": "Home Assistant Lovelace card for comparing historical entity data across multiple periods",
+  "type": "module",
+  "license": "GPL-3.0",
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "chart.js": "^4.5.0",
+    "lit": "^3.2.1",
+    "typescript": "^5.8.3",
+    "vite": "^5.4.19",
+    "vitest": "^2.1.9"
+  }
+}

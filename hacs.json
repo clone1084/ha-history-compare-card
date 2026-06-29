@@ -1,0 +1,7 @@
+{
+  "name": "History Compare Card",
+  "content_in_root": false,
+  "filename": "history-compare-card.js",
+  "render_readme": true,
+  "homeassistant": ">=2024.1.0"
+}
