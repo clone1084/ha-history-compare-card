@@ -55,18 +55,22 @@ export async function fetchStatistics(
   start: Date,
   end: Date,
 ): Promise<StatisticValue[]> {
-  const response = await hass.callApi<Record<string, StatisticValue[]>>(
-    'POST',
-    'recorder/statistics_during_period',
-    {
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
-      statistic_ids: [entityId],
-      period: 'hour',
-      types: ['mean', 'state'],
-    },
-  );
-  return response?.[entityId] ?? [];
+  try {
+    const response = await hass.callApi<Record<string, StatisticValue[]>>(
+      'POST',
+      'recorder/statistics_during_period',
+      {
+        start_time: start.toISOString(),
+        end_time: end.toISOString(),
+        statistic_ids: [entityId],
+        period: 'hour',
+        types: ['mean', 'state'],
+      },
+    );
+    return response?.[entityId] ?? [];
+  } catch {
+    return [];
+  }
 }
 
 export function toNumericStatisticsPoints(
@@ -92,7 +96,7 @@ export async function buildChartSeries(
   const baseEnd = now;
   const baseStart = new Date(now.getTime() - rangeHours * 60 * 60 * 1000);
 
-  return Promise.all(
+  const results = await Promise.allSettled(
     seriesConfigs.map(async (config) => {
       const start = subtractOffset(baseStart, config.offset);
       const end = subtractOffset(baseEnd, config.offset);
@@ -116,5 +120,11 @@ export async function buildChartSeries(
         points,
       };
     }),
+  );
+
+  return results.map((result, index) =>
+    result.status === 'fulfilled'
+      ? result.value
+      : { name: seriesConfigs[index].name, color: seriesConfigs[index].color, points: [] },
   );
 }
