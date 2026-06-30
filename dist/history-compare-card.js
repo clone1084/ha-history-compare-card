@@ -7842,21 +7842,18 @@ function Ph(i, t, e = 60) {
 }
 const Oh = 10 * 24 * 60 * 60 * 1e3;
 async function Th(i, t, e, s) {
-  return (await i.callApi(
-    "POST",
-    "recorder/statistics_during_period",
-    {
-      start_time: e.toISOString(),
-      end_time: s.toISOString(),
-      statistic_ids: [t],
-      period: "hour",
-      types: ["mean", "state"]
-    }
-  ))?.[t] ?? [];
+  return (await i.callWS({
+    type: "recorder/statistics_during_period",
+    start_time: e.toISOString(),
+    end_time: s.toISOString(),
+    statistic_ids: [t],
+    period: "hour",
+    types: ["mean", "state"]
+  }))?.[t] ?? [];
 }
 function Dh(i, t) {
   return i.map((e) => ({
-    x: (new Date(e.start).getTime() - t.getTime()) / (60 * 60 * 1e3),
+    x: (e.start * 1e3 - t.getTime()) / (60 * 60 * 1e3),
     y: e.mean ?? e.state ?? null
   })).filter((e) => e.x >= 0).sort((e, s) => e.x - s.x);
 }

@@ -56,17 +56,14 @@ export async function fetchStatistics(
   start: Date,
   end: Date,
 ): Promise<StatisticValue[]> {
-  const response = await hass.callApi<Record<string, StatisticValue[]>>(
-    'POST',
-    'recorder/statistics_during_period',
-    {
-      start_time: start.toISOString(),
-      end_time: end.toISOString(),
-      statistic_ids: [entityId],
-      period: 'hour',
-      types: ['mean', 'state'],
-    },
-  );
+  const response = await hass.callWS<Record<string, StatisticValue[]>>({
+    type: 'recorder/statistics_during_period',
+    start_time: start.toISOString(),
+    end_time: end.toISOString(),
+    statistic_ids: [entityId],
+    period: 'hour',
+    types: ['mean', 'state'],
+  });
   return response?.[entityId] ?? [];
 }
 
@@ -76,7 +73,7 @@ export function toNumericStatisticsPoints(
 ): Array<{ x: number; y: number | null }> {
   return stats
     .map((stat) => ({
-      x: (new Date(stat.start).getTime() - start.getTime()) / (60 * 60 * 1000),
+      x: (stat.start * 1000 - start.getTime()) / (60 * 60 * 1000),
       y: stat.mean ?? stat.state ?? null,
     }))
     .filter((point) => point.x >= 0)

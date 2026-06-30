@@ -42,9 +42,12 @@ export interface ChartSeries {
 }
 
 export interface StatisticValue {
-  start: string;
-  end: string;
-  mean: number | null;
-  state: number | null;
-  sum: number | null;
+  start: number;
+  end: number;
+  mean?: number | null;
+  state?: number | null;
+  sum?: number | null;
+  change?: number | null;
+  min?: number | null;
+  max?: number | null;
 }
