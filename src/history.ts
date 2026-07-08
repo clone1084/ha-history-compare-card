@@ -73,7 +73,9 @@ export function toNumericStatisticsPoints(
 ): Array<{ x: number; y: number | null }> {
   return stats
     .map((stat) => ({
-      x: (stat.start * 1000 - start.getTime()) / (60 * 60 * 1000),
+      // `stat.start` is already a millisecond epoch timestamp (see Home Assistant's
+      // recorder websocket API / frontend statistics-chart-data.ts), do not rescale it.
+      x: (stat.start - start.getTime()) / (60 * 60 * 1000),
       y: stat.mean ?? stat.state ?? null,
     }))
     .filter((point) => point.x >= 0)

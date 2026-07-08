@@ -10,7 +10,7 @@ import {
   normalizeOffset,
   subtractOffset,
 } from '../src/utils';
-import { buildAlignedDataset, toNumericHistoryPoints } from '../src/history';
+import { buildAlignedDataset, toNumericHistoryPoints, toNumericStatisticsPoints } from '../src/history';
 
 describe('normalizeOffset', () => {
   it('prefers offset_hours when provided', () => {
@@ -135,5 +135,51 @@ describe('buildAlignedDataset', () => {
       { x: 2, y: 22 },
       { x: 3, y: 22 },
     ]);
+  });
+});
+
+describe('toNumericStatisticsPoints', () => {
+  it('treats stat.start as an epoch-millisecond timestamp (not seconds)', () => {
+    const start = new Date('2026-06-29T00:00:00Z');
+    const result = toNumericStatisticsPoints(
+      [
+        { start: Date.parse('2026-06-29T02:00:00Z'), end: Date.parse('2026-06-29T03:00:00Z'), mean: 21.2 },
+        { start: Date.parse('2026-06-29T01:00:00Z'), end: Date.parse('2026-06-29T02:00:00Z'), mean: 20 },
+      ],
+      start,
+    );
+
+    expect(result).toEqual([
+      { x: 1, y: 20 },
+      { x: 2, y: 21.2 },
+    ]);
+  });
+
+  it('prefers mean over state, falling back to null when both are missing', () => {
+    const start = new Date('2026-06-29T00:00:00Z');
+    const result = toNumericStatisticsPoints(
+      [
+        { start: Date.parse('2026-06-29T01:00:00Z'), end: Date.parse('2026-06-29T02:00:00Z'), mean: 5, state: 10 },
+        { start: Date.parse('2026-06-29T02:00:00Z'), end: Date.parse('2026-06-29T03:00:00Z'), state: 10 },
+        { start: Date.parse('2026-06-29T03:00:00Z'), end: Date.parse('2026-06-29T04:00:00Z') },
+      ],
+      start,
+    );
+
+    expect(result).toEqual([
+      { x: 1, y: 5 },
+      { x: 2, y: 10 },
+      { x: 3, y: null },
+    ]);
+  });
+
+  it('drops points before the start of the window', () => {
+    const start = new Date('2026-06-29T00:00:00Z');
+    const result = toNumericStatisticsPoints(
+      [{ start: Date.parse('2026-06-28T23:00:00Z'), end: Date.parse('2026-06-29T00:00:00Z'), mean: 1 }],
+      start,
+    );
+
+    expect(result).toEqual([]);
   });
 });
